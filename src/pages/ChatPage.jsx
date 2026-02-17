@@ -4,8 +4,8 @@ import "./ChatPage.css";
 
 const MODELS = [
   { key: "llama3", label: "Llama 3.3", sub: "70B Versatile" },
-  { key: "mixtral", label: "Mistral", sub: "Saba 24B" },
-  { key: "gemma", label: "Gemma 2", sub: "9B IT" },
+  { key: "llama3fast", label: "Llama 3.1", sub: "8B Instant" },
+  { key: "qwen", label: "Qwen 3", sub: "32B" },
 ];
 
 function formatTime(iso) {
@@ -23,20 +23,14 @@ function formatDate(iso) {
   return d.toLocaleDateString([], { month: "short", day: "numeric" });
 }
 
-// Simple markdown renderer for bold, italic, code blocks, inline code
 function renderMarkdown(text) {
   if (!text) return "";
-  // Code blocks
   text = text.replace(/```(\w+)?\n?([\s\S]*?)```/g, (_, lang, code) =>
     `<pre class="code-block"><code>${code.replace(/</g, "&lt;").replace(/>/g, "&gt;").trim()}</code></pre>`
   );
-  // Inline code
   text = text.replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>');
-  // Bold
   text = text.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
-  // Italic
   text = text.replace(/\*(.*?)\*/g, "<em>$1</em>");
-  // Newlines to <br> (but not inside pre)
   text = text.replace(/\n/g, "<br/>");
   return text;
 }
@@ -52,11 +46,9 @@ export default function ChatPage({ onLogout }) {
   const [sending, setSending] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [deletingId, setDeletingId] = useState(null);
-  const [streamText, setStreamText] = useState("");
   const messagesEndRef = useRef(null);
   const textareaRef = useRef(null);
 
-  // Fetch all chats
   const fetchChats = useCallback(async () => {
     try {
       const res = await api.get("/api/chat/all");
@@ -70,12 +62,10 @@ export default function ChatPage({ onLogout }) {
 
   useEffect(() => { fetchChats(); }, [fetchChats]);
 
-  // Scroll to bottom on new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, streamText]);
+  }, [messages, sending]);
 
-  // Load messages for active chat
   useEffect(() => {
     if (!activeChatId) { setMessages([]); return; }
     setLoadingMessages(true);
@@ -85,7 +75,6 @@ export default function ChatPage({ onLogout }) {
       .finally(() => setLoadingMessages(false));
   }, [activeChatId]);
 
-  // Auto-resize textarea
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
@@ -127,10 +116,13 @@ export default function ChatPage({ onLogout }) {
     const userPrompt = prompt.trim();
     setPrompt("");
     setSending(true);
-    setStreamText("▋");
 
-    // Optimistically add user message
-    const tempUserMsg = { _id: "temp-u", prompt: userPrompt, response: null, model };
+    const tempUserMsg = {
+      _id: "temp-u",
+      prompt: userPrompt,
+      response: null,
+      model,
+    };
     setMessages((prev) => [...prev, tempUserMsg]);
 
     const endpoint = activeChatId
@@ -138,46 +130,32 @@ export default function ChatPage({ onLogout }) {
       : `/api/chat/new/message`;
 
     try {
-      // Simulate typing effect while waiting
-      let dots = 0;
-      const thinkInterval = setInterval(() => {
-        dots = (dots + 1) % 4;
-        setStreamText("▋".repeat(dots + 1));
-      }, 300);
-
       const res = await api.post(endpoint, { prompt: userPrompt, model });
-
-      clearInterval(thinkInterval);
-      setStreamText("");
-
       const { chatId: newChatId, response, title } = res.data;
 
-      // Update chat id if new
       if (!activeChatId) {
         setActiveChatId(newChatId);
         setChats((prev) => [
           { _id: newChatId, title, createdAt: new Date().toISOString() },
           ...prev,
         ]);
-      } else {
-        // update title if first message
-        setChats((prev) =>
-          prev.map((c) => (c._id === newChatId ? { ...c, title } : c))
-        );
       }
 
-      // Replace temp message with real one
       setMessages((prev) =>
         prev.map((m) =>
           m._id === "temp-u"
-            ? { _id: Date.now(), prompt: userPrompt, response, model, createdAt: new Date().toISOString() }
+            ? {
+                _id: Date.now(),
+                prompt: userPrompt,
+                response,
+                model,
+                createdAt: new Date().toISOString(),
+              }
             : m
         )
       );
     } catch (err) {
-      setStreamText("");
       setMessages((prev) => prev.filter((m) => m._id !== "temp-u"));
-      // Could show toast here
       console.error(err);
     } finally {
       setSending(false);
@@ -207,17 +185,27 @@ export default function ChatPage({ onLogout }) {
             <div className="sidebar-logo-icon">✦</div>
             {sidebarOpen && <span className="sidebar-logo-text">NeuralChat</span>}
           </div>
-          <button className="icon-btn sidebar-toggle" onClick={() => setSidebarOpen((v) => !v)} title="Toggle sidebar">
+          <button
+            className="icon-btn sidebar-toggle"
+            onClick={() => setSidebarOpen((v) => !v)}
+            title="Toggle sidebar"
+          >
             {sidebarOpen ? (
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 18l-6-6 6-6"/></svg>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M15 18l-6-6 6-6" />
+              </svg>
             ) : (
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 18l6-6-6-6"/></svg>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M9 18l6-6-6-6" />
+              </svg>
             )}
           </button>
         </div>
 
         <button className="new-chat-btn" onClick={handleNewChat}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 5v14M5 12h14"/></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <path d="M12 5v14M5 12h14" />
+          </svg>
           {sidebarOpen && <span>New Chat</span>}
         </button>
 
@@ -226,7 +214,7 @@ export default function ChatPage({ onLogout }) {
 
           {loadingChats ? (
             <div className="chats-loading">
-              {[1,2,3].map(i => <div key={i} className="chat-skeleton" />)}
+              {[1, 2, 3].map((i) => <div key={i} className="chat-skeleton" />)}
             </div>
           ) : chats.length === 0 ? (
             sidebarOpen && (
@@ -243,7 +231,9 @@ export default function ChatPage({ onLogout }) {
                 onClick={() => handleSelectChat(chat._id)}
               >
                 <div className="chat-item-icon">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                  </svg>
                 </div>
                 {sidebarOpen && (
                   <>
@@ -259,7 +249,12 @@ export default function ChatPage({ onLogout }) {
                       {deletingId === chat._id ? (
                         <span className="mini-spinner" />
                       ) : (
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <polyline points="3 6 5 6 21 6" />
+                          <path d="M19 6l-1 14H6L5 6" />
+                          <path d="M10 11v6M14 11v6" />
+                          <path d="M9 6V4h6v2" />
+                        </svg>
                       )}
                     </button>
                   </>
@@ -271,7 +266,11 @@ export default function ChatPage({ onLogout }) {
 
         <div className="sidebar-footer">
           <button className="logout-btn" onClick={handleLogout}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
+            </svg>
             {sidebarOpen && <span>Logout</span>}
           </button>
         </div>
@@ -308,7 +307,12 @@ export default function ChatPage({ onLogout }) {
               <h2 className="welcome-title">What can I help you with?</h2>
               <p className="welcome-sub">Choose a model above and start typing below</p>
               <div className="welcome-chips">
-                {["Explain quantum entanglement", "Write a Python script", "Summarize an article", "Debug my code"].map((q) => (
+                {[
+                  "Explain quantum entanglement",
+                  "Write a Python script",
+                  "Summarize an article",
+                  "Debug my code",
+                ].map((q) => (
                   <button key={q} className="welcome-chip" onClick={() => setPrompt(q)}>
                     {q}
                   </button>
@@ -319,7 +323,7 @@ export default function ChatPage({ onLogout }) {
             <div className="messages-list">
               {loadingMessages ? (
                 <div className="messages-loading">
-                  {[1,2,3].map(i => (
+                  {[1, 2, 3].map((i) => (
                     <div key={i} className={`msg-skeleton ${i % 2 === 0 ? "right" : "left"}`} />
                   ))}
                 </div>
@@ -358,7 +362,7 @@ export default function ChatPage({ onLogout }) {
                 ))
               )}
 
-              {/* Streaming / thinking indicator */}
+              {/* Thinking indicator */}
               {sending && (
                 <div className="msg-row ai-row">
                   <div className="msg-avatar ai-avatar">✦</div>
@@ -396,7 +400,10 @@ export default function ChatPage({ onLogout }) {
               {sending ? (
                 <span className="mini-spinner" />
               ) : (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <line x1="22" y1="2" x2="11" y2="13" />
+                  <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                </svg>
               )}
             </button>
           </div>
