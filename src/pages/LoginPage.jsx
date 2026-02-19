@@ -14,17 +14,19 @@ export default function LoginPage({ onLogin }) {
     setLoading(true);
     try {
       if (mode === "register") {
-        await api.post("/api/auth/register", form);
-        setMode("login");
-        setForm({ userName: "", email: "", password: "" });
-        setError("");
+        const res = await api.post("/api/auth/register", form);
+        // Save token to localStorage
+        localStorage.setItem('token', res.data.token);
+        onLogin();
         return;
       }
-      await api.post("/api/auth/login", {
+      const res = await api.post("/api/auth/login", {
         userName: form.userName,
         email: form.email,
         password: form.password,
       });
+      // Save token to localStorage
+      localStorage.setItem('token', res.data.token);
       onLogin();
     } catch (err) {
       setError(err.response?.data?.message || "Something went wrong");
@@ -98,7 +100,7 @@ export default function LoginPage({ onLogin }) {
 
         <div className="login-switch">
           {mode === "login" ? (
-            <>Don&apos;t have an account?{" "}
+            <>Don't have an account?{" "}
               <button onClick={() => { setMode("register"); setError(""); }}>
                 Sign up
               </button>

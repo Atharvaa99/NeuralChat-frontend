@@ -5,7 +5,6 @@ import "./ChatPage.css";
 const MODELS = [
   { key: "llama3", label: "Llama 3.3", sub: "70B Versatile" },
   { key: "llama3fast", label: "Llama 3.1", sub: "8B Instant" },
-  { key: "llama3mid", label: "Llama 3.1", sub: "70B" },
 ];
 
 function formatTime(iso) {
@@ -171,6 +170,7 @@ export default function ChatPage({ onLogout }) {
 
   const handleLogout = async () => {
     await api.post("/api/auth/logout").catch(() => {});
+    localStorage.removeItem('token'); 
     onLogout();
   };
 

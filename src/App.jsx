@@ -1,17 +1,19 @@
 import { useState, useEffect } from "react";
 import LoginPage from "./pages/LoginPage";
 import ChatPage from "./pages/ChatPage";
-import { api } from "./api";
 
 export default function App() {
-  const [user, setUser] = useState(undefined); // undefined = checking session
-
+  const [user, setUser] = useState(undefined);
+  
   useEffect(() => {
-    api
-      .get("/api/chat/all")
-      .then(() => setUser(true))
-      .catch(() => setUser(null));
+    const token = localStorage.getItem('token');
+    if (token) {
+      setUser(true);
+    } else {
+      setUser(null);
+    }
   }, []);
+
 
   if (user === undefined) {
     return (
